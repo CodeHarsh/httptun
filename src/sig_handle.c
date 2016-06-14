@@ -12,9 +12,6 @@ static void interrupted(int sig) {
 }
 
 void stop_on_sigint() {
-    struct sigaction sig;
-    sig.sa_handler = &interrupted;
-    sigemptyset(&sig.sa_mask);
-    assert(sigaction(SIGINT, &sig, NULL) == 0);
+    assert(signal(SIGINT, interrupted) != SIG_ERR);
 }
 
