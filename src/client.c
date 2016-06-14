@@ -79,9 +79,8 @@ void run_client(const char *host, int port, int tun_fd) {
                 curl_easy_getinfo(curl, CURLINFO_SPEED_UPLOAD, &speed_upload);
                 curl_easy_getinfo(curl, CURLINFO_TOTAL_TIME, &total_time);
                 log_info("client", "Speed: %.3f bytes/sec during %.3f seconds\n", speed_upload, total_time);
-            }   
+            }
         }
-        log_info("client", "Let it go.. Let it go...!");
         usleep(1000);//1ms wait, so if something has to come back really fast, we catch it.
     }
     curl_easy_cleanup(curl);
