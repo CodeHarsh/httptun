@@ -5,6 +5,8 @@
 *.la
 /build*/
 /src/httptun
+/tools/test_client
+
 
 # autotools stuff
 /m4/lt*.m4
@@ -33,6 +35,7 @@
 Makefile.in
 Makefile
 /src/.deps
+/tools/.deps
 
 # cscope and other tags
 /cscope.*

@@ -26,7 +26,7 @@ int alloc_tun() {
         strncpy(ifr.ifr_name, dev, IFNAMSIZ);
 
     if((err = ioctl(fd, TUNSETIFF, (void *) &ifr)) < 0){
-        fatal("tun", "ioctl call for tun device failed");
+        fatal("tun", "ioctl TUNSETIFF call for tun device failed");
         close(fd);
         return err;
     }
