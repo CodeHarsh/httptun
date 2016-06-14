@@ -6,7 +6,7 @@
 /build*/
 /src/httptun
 /tools/test_client
-
+/tools/test_server
 
 # autotools stuff
 /m4/lt*.m4

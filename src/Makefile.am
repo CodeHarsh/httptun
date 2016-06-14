@@ -11,7 +11,7 @@ dist_man_MANS = httptun.8
 
 noinst_LTLIBRARIES = libhttptun.la
 
-libhttptun_la_SOURCES  = log.c log.h server.h server.c tun.h tun.c client.h client.c stop.h
+libhttptun_la_SOURCES  = log.c log.h server.h server.c tun.h tun.c client.h client.c stop.h sig_handle.h sig_handle.c
 libhttptun_la_CPPFLAGS = $(AM_CFLAGS) @MICROHTTPD_CFLAGS@ @CURL_CFLAGS@
 libhttptun_la_LIBADD =  $(AM_LDFLAGS) @MICROHTTPD_LIBS@ @CURL_LIBS@
 

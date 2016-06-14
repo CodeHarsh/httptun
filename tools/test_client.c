@@ -14,7 +14,7 @@ int do_stop = 0;
 
 
 int main() {
-    int fd = open("/tmp/test.out", O_RDWR);
+    int fd = open("/tmp/test.client", O_RDWR);
     int flags = fcntl(fd, F_GETFL, 0);
     fcntl(fd, F_SETFL, flags | O_NONBLOCK);
     run_client("test-3", 9090, fd);

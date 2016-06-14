@@ -22,12 +22,12 @@
 #include "stop.h"
 #include "server.h"
 #include "tun.h"
+#include "sig_handle.h"
 
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
 #include <getopt.h>
-#include <signal.h>
 #include <assert.h>
 #include <client.h>
 
@@ -50,19 +50,6 @@ usage(void)
     fprintf(stderr, " -b, --bridgeHost <hostname | ip>   host to bridge to\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "see manual page " PACKAGE "(8) for more information\n");
-}
-
-int do_stop;
-
-static void interrupted(int sig) {
-    do_stop = 1;
-}
-
-static void stop_on_sigint() {
-    struct sigaction sig;
-    sig.sa_handler = &interrupted;
-    sigemptyset(&sig.sa_mask);
-    assert(sigaction (SIGINT, &sig, NULL) == 0);
 }
 
 int

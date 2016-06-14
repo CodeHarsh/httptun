@@ -62,6 +62,29 @@ esac
 
 AC_CACHE_SAVE
 
+AC_CHECK_HEADERS(
+    [pthread.h],
+    [
+      AC_CHECK_LIB(
+        [pthread],
+        [pthread_create],
+        [
+          AC_DEFINE([USE_PTHREADS], [1], [Multithreading support enabled.])
+          PTHREADS_LIBS="-lpthread"
+ 	  case "${os_type}" in
+ 	  solaris) PTHREADS_CFLAGS="-pthreads" ;;
+ 	  *)       PTHREADS_CFLAGS="-pthread" ;;
+ 	  esac
+          AC_SUBST(PTHREADS_LIBS)
+          AC_SUBST(PTHREADS_CFLAGS)
+        ],
+        [AC_MSG_FAILURE([pthread is missing])],
+        [-lpthread]
+      )
+    ],
+    [AC_MSG_FAILURE([pthread is missing])]
+)
+
 PKG_CHECK_MODULES([MICROHTTPD], [libmicrohttpd])
 # JJ: check for linux/if.h and linux/if_tun.h
 PKG_CHECK_MODULES([CURL], [libcurl])
