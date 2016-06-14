@@ -9,9 +9,9 @@ dist_man_MANS = httptun.8
 ## TODO:5000 Automake will find dependencies by itself. Run
 ## TODO:5000 ./autogen.sh after modifying this file.
 
-httptun_SOURCES  = log.c log.h httptun.h httptun.c server.h server.c
-httptun_CFLAGS   = $(AM_CFLAGS) @MICROHTTPD_CFLAGS@
-httptun_LDFLAGS  = $(AM_LDFLAGS) @MICROHTTPD_LIBS@
+httptun_SOURCES  = log.c log.h httptun.h httptun.c server.h server.c tun.h tun.c client.h client.c stop.h
+httptun_CFLAGS   = $(AM_CFLAGS) @MICROHTTPD_CFLAGS@ @CURL_CFLAGS@
+httptun_LDFLAGS  = $(AM_LDFLAGS) @MICROHTTPD_LIBS@ @CURL_LIBS@
 
 ## TODO:2004 Each time you have used `PKG_CHECK_MODULES` macro
 ## TODO:2004 in `configure.ac`, you get two variables that

@@ -5,5 +5,5 @@
 #  include <config.h>
 #endif
 
-void start_server(int port);
+void run_server(int port, int tun_fd);
 #endif

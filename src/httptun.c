@@ -19,12 +19,17 @@
  */
 
 #include "httptun.h"
+#include "stop.h"
 #include "server.h"
+#include "tun.h"
 
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
 #include <getopt.h>
+#include <signal.h>
+#include <assert.h>
+#include <client.h>
 
 extern const char *__progname;
 
@@ -37,13 +42,27 @@ usage(void)
 	    __progname);
 	fprintf(stderr, "Version: %s\n", PACKAGE_STRING);
 	fprintf(stderr, "\n");
-	fprintf(stderr, " -d, --debug        be more verbose.\n");
-	fprintf(stderr, " -h, --help         display help and exit\n");
-	fprintf(stderr, " -v, --version      print version and exit\n");
-	fprintf(stderr, " -s, --server       run a server (tunnel terminator)\n");
-    fprintf(stderr, " -p, --port <port>  server port number\n");
+	fprintf(stderr, " -d, --debug                        be more verbose.\n");
+	fprintf(stderr, " -h, --help                         display help and exit\n");
+	fprintf(stderr, " -v, --version                      print version and exit\n");
+	fprintf(stderr, " -s, --server                       run a server (tunnel terminator)\n");
+    fprintf(stderr, " -p, --port <port>                  server port number\n");
+    fprintf(stderr, " -b, --bridgeHost <hostname | ip>   host to bridge to\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "see manual page " PACKAGE "(8) for more information\n");
+}
+
+int do_stop;
+
+static void interrupted(int sig) {
+    do_stop = 1;
+}
+
+static void stop_on_sigint() {
+    struct sigaction sig;
+    sig.sa_handler = &interrupted;
+    sigemptyset(&sig.sa_mask);
+    assert(sigaction (SIGINT, &sig, NULL) == 0);
 }
 
 int
@@ -52,8 +71,11 @@ main(int argc, char *argv[])
 	int debug = 1;
 	int ch;
 
-    int run_server = 0;
+    int server = 0;
     int port = 8080;
+    char* bridge_host = NULL;
+    do_stop = 0;
+    stop_on_sigint();
 
 	/* TODO:3001 If you want to add more options, add them here. */
 	static struct option long_options[] = {
@@ -62,11 +84,12 @@ main(int argc, char *argv[])
         { "version", no_argument, 0, 'v' },
         { "server", no_argument, 0, 's'},
         { "port", required_argument, 0, 'p'},
+        { "bridgeHost", required_argument, 0, 'b'},
         { 0 }
 	};
 	while (1) {
 		int option_index = 0;
-		ch = getopt_long(argc, argv, "hvdD:sp:",
+		ch = getopt_long(argc, argv, "hvdD:sp:b:",
 		    long_options, &option_index);
 		if (ch == -1) break;
 		switch (ch) {
@@ -85,10 +108,13 @@ main(int argc, char *argv[])
 			log_accept(optarg);
 			break;
         case 's':
-            run_server = 1;
+            server = 1;
             break;
         case 'p':
             port = atoi(optarg);
+            break;
+        case 'b':
+            bridge_host = strdup(optarg);
             break;
 		default:
 			fprintf(stderr, "unknown option `%c'\n", ch);
@@ -101,9 +127,24 @@ main(int argc, char *argv[])
 
 	/* TODO:3000 It's time for you program to do something. Add anything
 	 * TODO:3000 you want here. */
-    if (run_server) {
-        start_server(port);
+    log_debug("main", "Allocating tun");
+    int tun_fd = alloc_tun();
+    if (server) {
+        if (bridge_host != NULL) {
+            log_crit("main", "Server doesn't bridge-over, it _is_ the bridgeHost");
+        } else {
+            run_server(port, tun_fd);
+        }
+    } else {
+        if (bridge_host == NULL) {
+            log_crit("main", "Client requires bridgeHost");
+        } else {
+            run_client(bridge_host, port, tun_fd);
+            free(bridge_host);
+        }
     }
+    log_debug("main", "Closing tun");
+    close(tun_fd);
 
 	return EXIT_SUCCESS;
 }

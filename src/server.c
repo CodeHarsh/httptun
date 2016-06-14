@@ -1,14 +1,12 @@
 #include "server.h"
 #include "log.h"
+#include "stop.h"
 
 #include <microhttpd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
-#include <signal.h>
-
-int do_stop;
 
 #define HC_OK "{\"status\": \"ok\"}\n"
 
@@ -89,25 +87,12 @@ static int do_handle(void *cls, struct MHD_Connection *connection, const char *u
     }
 }
 
-static void interrupted(int sig) {
-    do_stop = 1;
-}
-
-static void stop_on_sigint() {
-    struct sigaction sig;
-    sig.sa_handler = &interrupted;
-    sigemptyset(&sig.sa_mask);
-    assert(sigaction (SIGINT, &sig, NULL) == 0);
-}
-
-void start_server(int port) {
-    do_stop = 0;
-    stop_on_sigint();
+void run_server(int port, int tun_fd) {
     struct MHD_Daemon *d;
     log_warnx("server", "Starting HTTP server on port %d!", port);
     d = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY, port, NULL, NULL, &do_handle, NULL, MHD_OPTION_END);
     assert(d != NULL);
     while(! do_stop) sleep(1);
-    log_crit("server", "Stop requested");
+    fatal("server", "Stop requested");
     MHD_stop_daemon(d);
 }

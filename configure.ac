@@ -63,6 +63,8 @@ esac
 AC_CACHE_SAVE
 
 PKG_CHECK_MODULES([MICROHTTPD], [libmicrohttpd])
+# JJ: check for linux/if.h and linux/if_tun.h
+PKG_CHECK_MODULES([CURL], [libcurl])
 
 AC_CACHE_SAVE
 
