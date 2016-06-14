@@ -163,7 +163,7 @@ static int do_handle(void *fd,
     }
     const char *bad_method = "Method not supported.";
     response = MHD_create_response_from_buffer(strlen(bad_method), (void *) bad_method, MHD_RESPMEM_PERSISTENT);
-    ret = MHD_queue_response(connection, MHD_HTTP_NOT_ACCEPTABLE, response);
+    ret = MHD_queue_response(connection, 406, response);
     MHD_destroy_response(response);
     return ret;
 }
