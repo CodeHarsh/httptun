@@ -35,6 +35,9 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
 }
 
 void run_client(const char *host, int port, int tun_fd) {
+    int flags = fcntl(tun_fd, F_GETFL, 0);
+    assert(fcntl(tun_fd, F_SETFL, flags | O_NONBLOCK) == 0);
+
     char buff[BUFF_SZ];
     char url[URL_SZ];
     int read_len;
@@ -79,7 +82,7 @@ void run_client(const char *host, int port, int tun_fd) {
             }   
         }
         log_info("client", "Let it go.. Let it go...!");
-        usleep(1000);
+        usleep(1000);//1ms wait, so if something has to come back really fast, we catch it.
     }
     curl_easy_cleanup(curl);
 }
