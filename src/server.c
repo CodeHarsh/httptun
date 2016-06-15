@@ -208,7 +208,7 @@ void run_server(int port, int tun_fd,
                              &do_handle, &s_ctx,
                              MHD_OPTION_END);
     else
-        d = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY, port,
+        d = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY | MHD_USE_SSL, port,
                              NULL, NULL,
                              &do_handle, &s_ctx,
                              MHD_OPTION_HTTPS_MEM_KEY, ssl_key,
