@@ -37,9 +37,12 @@ static int post_iterator(void *ctx,
             log_debug("server", "Wrote %zd bytes to tunnel so far", written);
         }
         usleep(1000);//1 ms wait, so we take advantage of something returning really fast
-        int bytes_read = read(r->fd, r->buff + r->buff_filled_upto, POST_BUFFER_SZ - r->buff_filled_upto);
-        if (bytes_read > 0) r->buff_filled_upto += bytes_read;
-        else if (errno != EAGAIN) log_warn("server", "Tun read failed, it read %d bytes", bytes_read);
+        if ((POST_BUFFER_SZ - r->buff_filled_upto) > 0) {
+            int bytes_read = read(r->fd, r->buff + r->buff_filled_upto, POST_BUFFER_SZ - r->buff_filled_upto);
+            log_debug("server", "Read %d bytes off tun", bytes_read);
+            if (bytes_read > 0) r->buff_filled_upto += bytes_read;
+            else if (errno != EAGAIN) log_warn("server", "Tun read failed, it read %d bytes", bytes_read);
+        }
     }
     return MHD_YES;
 }

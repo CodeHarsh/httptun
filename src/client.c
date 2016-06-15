@@ -57,10 +57,11 @@ void run_client(const char *host, int port, int tun_fd) {
     assert(curl != NULL);
     while(! do_stop) {
         read_len = read(tun_fd, buff, BUFF_SZ);
+
+        curl_easy_reset(curl);
+        post = last_post = NULL;
+        curl_easy_setopt(curl, CURLOPT_URL, url);
         if (read_len > 0) {
-            curl_easy_reset(curl);
-            post = last_post = NULL;
-            curl_easy_setopt(curl, CURLOPT_URL, url);
             curl_formadd(&post, &last_post,
                          CURLFORM_COPYNAME, "pkt",
                          CURLFORM_BUFFER, "pkt",
@@ -68,19 +69,20 @@ void run_client(const char *host, int port, int tun_fd) {
                          CURLFORM_BUFFERLENGTH, read_len,
                          CURLFORM_END);
             curl_easy_setopt(curl, CURLOPT_HTTPPOST, post);
-            curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-            curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&tun_fd);
-            res = curl_easy_perform(curl);
-
-            if(res != CURLE_OK) {
-                log_warnx("client", "curl_easy_perform() failed: %s", curl_easy_strerror(res));
-            } else {
-                curl_easy_getinfo(curl, CURLINFO_SPEED_UPLOAD, &speed_upload);
-                curl_easy_getinfo(curl, CURLINFO_TOTAL_TIME, &total_time);
-                log_info("client", "Speed: %.3f bytes/sec during %.3f seconds\n", speed_upload, total_time);
-            }
         }
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&tun_fd);
+        res = curl_easy_perform(curl);
+
+        if(res != CURLE_OK) {
+            log_warnx("client", "curl_easy_perform() failed: %s", curl_easy_strerror(res));
+        } else {
+            curl_easy_getinfo(curl, CURLINFO_SPEED_UPLOAD, &speed_upload);
+            curl_easy_getinfo(curl, CURLINFO_TOTAL_TIME, &total_time);
+            log_info("client", "Speed: %.3f bytes/sec during %.3f seconds\n", speed_upload, total_time);
+        }
+
         usleep(1000);//1ms wait, so if something has to come back really fast, we catch it.
     }
     curl_easy_cleanup(curl);
