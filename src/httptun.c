@@ -119,7 +119,8 @@ main(int argc, char *argv[])
 	log_init(debug, __progname);
 
     if (tun_up_cmd == NULL) {
-        fatal("main", "TUN-UP command must be provided");
+        log_crit("main", "TUN-UP command must be provided");
+        exit(1);
     }
 
 	/* TODO:3000 It's time for you program to do something. Add anything
