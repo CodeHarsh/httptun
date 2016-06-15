@@ -35,6 +35,23 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
     return total_written;
 }
 
+#define MIN_BACKOFF_MICRO_SEC 1000 /* 1 ms, used when we have work going on */
+
+void increase_backoff(int *usec) {
+    if (*usec < 300000) { /* < 300 ms (healthy internet class latency + BIG factor of safety) */
+        *usec += 20000;
+    } else if (*usec < 60000000) {/* < 1 min (no one is doing anything anyway) */
+        *usec *= 2;
+    }
+    log_debug("client", "New backoff value: %d", *usec);
+}
+
+void do_backoff(int usec) {
+    int sec = usec >> 20;
+    if (sec > 0) sleep(sec);
+    else usleep(usec);
+}
+
 void run_client(const char *host, int port, int tun_fd) {
     int flags = fcntl(tun_fd, F_GETFL, 0);
     assert(fcntl(tun_fd, F_SETFL, flags | O_NONBLOCK) == 0);
@@ -48,6 +65,8 @@ void run_client(const char *host, int port, int tun_fd) {
     double speed_upload, total_time;
     struct curl_httppost *post;
     struct curl_httppost *last_post;
+
+    int backoff = 0;
 
     if (MAX_HOST_LEN < strlen(host)) {
         log_crit("client", "host-name too long");
@@ -73,8 +92,11 @@ void run_client(const char *host, int port, int tun_fd) {
                          CURLFORM_END);
             curl_easy_setopt(curl, CURLOPT_HTTPPOST, post);
             log_debug("client", "Sending %d bytes of data in current request", read_len);
+            backoff = MIN_BACKOFF_MICRO_SEC;
+            log_debug("client", "Have reset backoff to %d", backoff);
         } else {
             log_debug("client", "Sending NO-data in current request");
+            increase_backoff(&backoff);
         }
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
@@ -89,7 +111,7 @@ void run_client(const char *host, int port, int tun_fd) {
             log_info("client", "Speed: %.3f bytes/sec during %.3f seconds\n", speed_upload, total_time);
         }
 
-        usleep(1000);//1ms wait, so if something has to come back really fast, we catch it.
+        do_backoff(backoff);
     }
     curl_easy_cleanup(curl);
 }
