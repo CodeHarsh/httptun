@@ -75,11 +75,14 @@ static int pkt_response(struct request_s *req, struct MHD_Connection *connection
     if (NULL == req)
         return MHD_NO;
 
+    int buffered_bytes = 0;
     int bytes_read = read(req->fd, req->buff, POST_BUFFER_SZ);
+    
     log_debug("server", "Read %d bytes off tun", bytes_read);
-    if (bytes_read <= 0 || errno != EAGAIN) log_warn("server", "Tun read failed, it read %d bytes", bytes_read);
+    if (bytes_read > 0) buffered_bytes = bytes_read;
+    else if (errno != EAGAIN) log_warn("server", "Tun read failed, it read %d bytes", bytes_read);
 
-    return render_response((void *)req, bytes_read, "application/octet-stream", MHD_RESPMEM_MUST_FREE, MHD_HTTP_OK, connection);
+    return render_response((void *)req, buffered_bytes, "application/octet-stream", MHD_RESPMEM_MUST_FREE, MHD_HTTP_OK, connection);
 }
 
 static int health_check_response(struct request_s *req, struct MHD_Connection *connection) {
@@ -87,8 +90,13 @@ static int health_check_response(struct request_s *req, struct MHD_Connection *c
 }
 
 static int page_not_found_response(struct request_s *req, struct MHD_Connection *connection) {
-    return render_static_response_and_free_req(req, "No such page exists.", "text/plain", MHD_HTTP_NOT_FOUND, connection);
+    return render_static_response_and_free_req(req, "Page not found.", "text/plain", MHD_HTTP_NOT_FOUND, connection);
 }
+
+static int unauthorized_response(struct request_s *req, struct MHD_Connection *connection) {
+    return render_static_response_and_free_req(req, "Unauthorized.", "text/plain", MHD_HTTP_UNAUTHORIZED, connection);
+}
+
 
 typedef int (*page_handler_fn_t)(struct request_s *req, struct MHD_Connection *connection);
 
@@ -101,7 +109,7 @@ struct page_s {
 static struct page_s pages[] = {
     { "/pkt", &pkt_response, 1},
     { "/hc", &health_check_response, 0},
-    { "/auth_required", &health_check_response, 0},
+    { "/auth_required", &unauthorized_response, 0},
     { NULL, &page_not_found_response, 1}
 };
 
@@ -109,8 +117,8 @@ static struct page_s pages[] = {
 
 #define SH "server"
 
-static struct page_s *resolve_page(struct server_ctx_s *s_ctx, const char *url, struct MHD_Connection *connection) {
-    unsigned int i;
+static struct page_s *resolve_page(struct server_ctx_s *s_ctx, const char *method, const char *url, struct MHD_Connection *connection) {
+    unsigned int i = 0;
     while ((pages[i].url != NULL) && (0 != strcmp(pages[i].url, url))) i++;
     struct page_s *pg = &pages[i];
 
@@ -120,6 +128,7 @@ static struct page_s *resolve_page(struct server_ctx_s *s_ctx, const char *url, 
         if ((user == NULL) ||
             (0 != strcmp(user, s_ctx->username)) ||
             (0 != strcmp(pass, s_ctx->password))) {
+            log_info("server", "Unauthorized access with username %s and password %s action [%s] %s", user, pass, method, url);
             pg = &pages[UNAUTHORIZED_HANDLER];
         }
         free(user); free(pass);
@@ -139,11 +148,11 @@ static int do_handle(void *s_ctx_,
     int ret;
     struct server_ctx_s *s_ctx = (struct server_ctx_s *) s_ctx_;
 
-    struct page_s *pg = resolve_page(s_ctx, url, connection);
+    struct page_s *pg = resolve_page(s_ctx, method, url, connection);
     
     request = *ptr;
     if (NULL == request) {
-        request = calloc (1, sizeof (struct request_s));
+        request = calloc(1, sizeof (struct request_s));
         if (NULL == request) {
             log_warn(SH, "calloc error");
             return MHD_NO;
@@ -178,7 +187,7 @@ static int do_handle(void *s_ctx_,
             log_warnx(SH, "Failed to create page for '%s'", url);
         return ret;
     }
-    return render_static_response_and_free_req(request, "Method not supported.", "text/plain", 406, connection);
+    return render_static_response_and_free_req(request, "Method not supported.", "text/plain", MHD_HTTP_METHOD_NOT_ACCEPTABLE, connection);
 }
 
 void run_server(int port, int tun_fd, const char *username, const char *password) {
