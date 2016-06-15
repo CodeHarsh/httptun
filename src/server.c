@@ -10,7 +10,7 @@
 #include <fcntl.h>
 #include <errno.h>
 
-#define POST_BUFFER_SZ 32*1024
+#define POST_BUFFER_SZ 64*1024
 
 struct request_s {
     char buff[POST_BUFFER_SZ];
@@ -37,7 +37,9 @@ static int post_iterator(void *ctx,
             log_debug("server", "Wrote %zd bytes to tunnel so far", written);
         }
         usleep(1000);//1 ms wait, so we take advantage of something returning really fast
-        r->buff_filled_upto = read(r->fd, r->buff, POST_BUFFER_SZ);
+        int bytes_read = read(r->fd, r->buff + r->buff_filled_upto, POST_BUFFER_SZ - r->buff_filled_upto);
+        if (bytes_read > 0) r->buff_filled_upto += bytes_read;
+        else if (errno != EAGAIN) log_warn("server", "Tun read failed, it read %d bytes", bytes_read);
     }
     return MHD_YES;
 }
