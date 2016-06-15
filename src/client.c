@@ -16,8 +16,8 @@
 #define URL_SZ (MAX_HOST_LEN + 32)
 #define PATH_FRAG "/"
 
-static void make_pkt_post_url(const char *host, int port, char *buff, int buff_sz) {
-    snprintf(buff, buff_sz, "http://%s:%d/pkt", host, port);
+static void make_pkt_post_url(const char *host, int port, int use_ssl, char *buff, int buff_sz) {
+    snprintf(buff, buff_sz, "%s://%s:%d/pkt", (use_ssl ? "https": "http"), host, port);
 }
 
 static size_t write_callback(void *contents, size_t size, size_t nmemb, void *userp) {
@@ -52,7 +52,7 @@ void do_backoff(int usec) {
     else usleep(usec);
 }
 
-void run_client(const char *host, int port, int tun_fd, const char *username, const char *password) {
+void run_client(const char *host, int port, int tun_fd, const char *username, const char *password, int use_ssl) {
     int flags = fcntl(tun_fd, F_GETFL, 0);
     assert(fcntl(tun_fd, F_SETFL, flags | O_NONBLOCK) == 0);
 
@@ -72,7 +72,7 @@ void run_client(const char *host, int port, int tun_fd, const char *username, co
         log_crit("client", "host-name too long");
         return;
     }
-    make_pkt_post_url(host, port, url, URL_SZ);
+    make_pkt_post_url(host, port, use_ssl, url, URL_SZ);
     curl = curl_easy_init();
     assert(curl != NULL);
     while(! do_stop) {
@@ -103,6 +103,7 @@ void run_client(const char *host, int port, int tun_fd, const char *username, co
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&tun_fd);
         curl_easy_setopt(curl, CURLOPT_USERNAME, username);
         curl_easy_setopt(curl, CURLOPT_PASSWORD, password);
+        if (use_ssl) curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
         res = curl_easy_perform(curl);
 
         if(res != CURLE_OK) {
