@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <string.h>
+#include <errno.h>
  
 #define BUFF_SZ (32 * 1024)
 #define MAX_HOST_LEN 255
@@ -71,7 +72,7 @@ void run_client(const char *host, int port, int tun_fd) {
                          CURLFORM_BUFFERLENGTH, read_len,
                          CURLFORM_END);
             curl_easy_setopt(curl, CURLOPT_HTTPPOST, post);
-            log_debug("client", "Sending %d bytes of data in current request");
+            log_debug("client", "Sending %d bytes of data in current request", read_len);
         } else {
             log_debug("client", "Sending NO-data in current request");
         }
