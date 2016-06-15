@@ -16,7 +16,12 @@ struct request_s {
     char buff[POST_BUFFER_SZ];
     struct MHD_PostProcessor *pp;
     int fd;
-    int buff_filled_upto;
+};
+
+struct server_ctx_s {
+    const char *username;
+    const char *password;
+    int fd;
 };
 
 static int post_iterator(void *ctx,
@@ -41,77 +46,88 @@ static int post_iterator(void *ctx,
     return MHD_YES;
 }
 
-static int pkt_response(void *ctx, struct MHD_Connection *connection) {
-    int ret;
-    struct MHD_Response *response;
+static int render_response(void *data,
+                           int data_len,
+                           const char *mime,
+                           enum MHD_ResponseMemoryMode mem_mode,
+                           int status_code,
+                           struct MHD_Connection *connection) {
+    
+    struct MHD_Response *response = MHD_create_response_from_buffer(data_len, data, mem_mode);
+    if (NULL == response)
+        return MHD_NO;
+    MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_ENCODING, mime);
+    int ret = MHD_queue_response(connection, status_code, response);
+    MHD_destroy_response(response);
+    return ret;
+}
 
-    if (NULL == ctx)
+static int render_static_response_and_free_req(struct request_s *req,
+                                               const char *data,
+                                               const char *mime,
+                                               int status_code,
+                                               struct MHD_Connection *connection) {
+    free(req);
+    return render_response((void *)data, strlen(data), mime, MHD_RESPMEM_PERSISTENT, status_code, connection);
+}
+
+static int pkt_response(struct request_s *req, struct MHD_Connection *connection) {
+    if (NULL == req)
         return MHD_NO;
 
-    struct request_s *r = (struct request_s*) ctx;
-
-    int bytes_read = read(r->fd, r->buff, POST_BUFFER_SZ);
+    int bytes_read = read(req->fd, req->buff, POST_BUFFER_SZ);
     log_debug("server", "Read %d bytes off tun", bytes_read);
-    if (bytes_read > 0) r->buff_filled_upto += bytes_read;
-    else if (errno != EAGAIN) log_warn("server", "Tun read failed, it read %d bytes", bytes_read);
+    if (bytes_read <= 0 || errno != EAGAIN) log_warn("server", "Tun read failed, it read %d bytes", bytes_read);
 
-    response = MHD_create_response_from_buffer(r->buff_filled_upto, (void *) ctx, MHD_RESPMEM_MUST_FREE);
-    if (NULL == response)
-        return MHD_NO;
-    MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_ENCODING, "application/octet-stream");
-    ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
-    MHD_destroy_response(response);
-    return ret;
+    return render_response((void *)req, bytes_read, "application/octet-stream", MHD_RESPMEM_MUST_FREE, MHD_HTTP_OK, connection);
 }
 
-static int health_check_response(void *ctx, struct MHD_Connection *connection) {
-    int ret;
-    struct MHD_Response *response;
-
-    const char *status_ok = "{\"status\": \"green\"}";
-
-    response = MHD_create_response_from_buffer(strlen(status_ok), (void *) status_ok, MHD_RESPMEM_PERSISTENT);
-    if (NULL == response)
-        return MHD_NO;
-    MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_ENCODING, "text/json");
-    ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
-    MHD_destroy_response(response);
-    return ret;
+static int health_check_response(struct request_s *req, struct MHD_Connection *connection) {
+    return render_static_response_and_free_req(req, "{\"status\": \"green\"}", "text/json", MHD_HTTP_OK, connection);
 }
 
-#define NOT_FOUND_ERROR 
-
-static int page_not_found_response(void *ctx, struct MHD_Connection *connection) {
-    int ret;
-    struct MHD_Response *response;
-
-    const char *page_not_found = "No such page exists.";
-
-    response = MHD_create_response_from_buffer(strlen(page_not_found), (void *) page_not_found, MHD_RESPMEM_PERSISTENT);
-    if (NULL == response)
-        return MHD_NO;
-    ret = MHD_queue_response(connection, MHD_HTTP_NOT_FOUND, response);
-    MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_ENCODING, "text/plain");
-    MHD_destroy_response(response);
-    return ret;
+static int page_not_found_response(struct request_s *req, struct MHD_Connection *connection) {
+    return render_static_response_and_free_req(req, "No such page exists.", "text/plain", MHD_HTTP_NOT_FOUND, connection);
 }
 
-typedef int (*page_handler_fn_t)(void *ctx, struct MHD_Connection *connection);
+typedef int (*page_handler_fn_t)(struct request_s *req, struct MHD_Connection *connection);
 
 struct page_s {
     const char *url;
     page_handler_fn_t handler;
+    int requires_auth;
 };
 
 static struct page_s pages[] = {
-    { "/pkt", &pkt_response},
-    { "/hc", &health_check_response},
-    { NULL, &page_not_found_response}
+    { "/pkt", &pkt_response, 1},
+    { "/hc", &health_check_response, 0},
+    { "/auth_required", &health_check_response, 0},
+    { NULL, &page_not_found_response, 1}
 };
 
-#define SH "server_handler"
+#define UNAUTHORIZED_HANDLER 2
 
-static int do_handle(void *fd,
+#define SH "server"
+
+static struct page_s *resolve_page(struct server_ctx_s *s_ctx, const char *url, struct MHD_Connection *connection) {
+    unsigned int i;
+    while ((pages[i].url != NULL) && (0 != strcmp(pages[i].url, url))) i++;
+    struct page_s *pg = &pages[i];
+
+    if (pg->requires_auth) {
+        char *pass = NULL;
+        char *user = MHD_basic_auth_get_username_password(connection, &pass);
+        if ((user == NULL) ||
+            (0 != strcmp(user, s_ctx->username)) ||
+            (0 != strcmp(pass, s_ctx->password))) {
+            pg = &pages[UNAUTHORIZED_HANDLER];
+        }
+        free(user); free(pass);
+    }
+    return pg;
+}
+
+static int do_handle(void *s_ctx_,
                      struct MHD_Connection *connection,
                      const char *url,
                      const char *method,
@@ -119,12 +135,12 @@ static int do_handle(void *fd,
                      const char *upload_data,
                      size_t *upload_data_size,
                      void **ptr) {
-    struct MHD_Response *response;
     struct request_s *request;
     int ret;
-    unsigned int i;
-    void *ctx = NULL;
+    struct server_ctx_s *s_ctx = (struct server_ctx_s *) s_ctx_;
 
+    struct page_s *pg = resolve_page(s_ctx, url, connection);
+    
     request = *ptr;
     if (NULL == request) {
         request = calloc (1, sizeof (struct request_s));
@@ -132,7 +148,7 @@ static int do_handle(void *fd,
             log_warn(SH, "calloc error");
             return MHD_NO;
         }
-        request->fd = *(int *)fd;
+        request->fd = s_ctx->fd;
         *ptr = request;
         if (0 == strcmp (method, MHD_HTTP_METHOD_POST)) {
             request->pp = MHD_create_post_processor(connection, 1024, &post_iterator, request);
@@ -143,7 +159,6 @@ static int do_handle(void *fd,
         }
         return MHD_YES;
     }
-    ctx = request;
     if (0 == strcmp(method, MHD_HTTP_METHOD_POST)) {
         MHD_post_process(request->pp, upload_data, *upload_data_size);
         if (0 != *upload_data_size) {
@@ -158,27 +173,25 @@ static int do_handle(void *fd,
 
     if ((0 == strcmp(method, MHD_HTTP_METHOD_GET)) ||
         (0 == strcmp(method, MHD_HTTP_METHOD_HEAD))) {
-        i=0;
-        while ((pages[i].url != NULL) && (0 != strcmp(pages[i].url, url))) i++;
-        ret = pages[i].handler(ctx, connection);
+        ret = pg->handler(request, connection);
         if (ret != MHD_YES)
             log_warnx(SH, "Failed to create page for '%s'", url);
         return ret;
     }
-    const char *bad_method = "Method not supported.";
-    response = MHD_create_response_from_buffer(strlen(bad_method), (void *) bad_method, MHD_RESPMEM_PERSISTENT);
-    ret = MHD_queue_response(connection, 406, response);
-    MHD_destroy_response(response);
-    return ret;
+    return render_static_response_and_free_req(request, "Method not supported.", "text/plain", 406, connection);
 }
 
-void run_server(int port, int tun_fd) {
+void run_server(int port, int tun_fd, const char *username, const char *password) {
     int flags = fcntl(tun_fd, F_GETFL, 0);
     assert(fcntl(tun_fd, F_SETFL, flags | O_NONBLOCK) == 0);
-    
+
+    struct server_ctx_s s_ctx;
+    s_ctx.fd = tun_fd;
+    s_ctx.username = username;
+    s_ctx.password = password;
     struct MHD_Daemon *d;
     log_warnx("server", "Starting HTTP server on port %d!", port);
-    d = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY, port, NULL, NULL, &do_handle, &tun_fd, MHD_OPTION_END);
+    d = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY, port, NULL, NULL, &do_handle, &s_ctx, MHD_OPTION_END);
     assert(d != NULL);
     while(! do_stop) sleep(1);
     fatal("server", "Stop requested");

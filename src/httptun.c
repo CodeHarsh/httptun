@@ -49,6 +49,8 @@ usage(void)
     fprintf(stderr, " -p, --port <port>                  server port number\n");
     fprintf(stderr, " -b, --bridgeHost <hostname | ip>   host to bridge to\n");
     fprintf(stderr, " -c, --command '<command>'          command to set up tunnel (TUN-UP command)\n");
+    fprintf(stderr, " -U, --username <username>          \n");
+    fprintf(stderr, " -P, --password <password>          \n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "see manual page " PACKAGE "(8) for more information\n");
 }
@@ -61,8 +63,10 @@ main(int argc, char *argv[])
 
     int server = 0;
     int port = 8080;
-    char* bridge_host = NULL;
-    char* tun_up_cmd = NULL;
+    char *bridge_host = NULL;
+    char *tun_up_cmd = NULL;
+    char *username = NULL;
+    char *password = NULL;
     do_stop = 0;
     stop_on_sigint();
 
@@ -75,11 +79,13 @@ main(int argc, char *argv[])
         { "port", required_argument, 0, 'p'},
         { "bridgeHost", required_argument, 0, 'b'},
         { "command", required_argument, 0, 'c'},
+        { "username", required_argument, 0, 'U'},
+        { "password", required_argument, 0, 'P'},
         { 0 }
 	};
 	while (1) {
 		int option_index = 0;
-		ch = getopt_long(argc, argv, "hvdD:sp:b:c:",
+		ch = getopt_long(argc, argv, "hvdD:sp:b:c:U:P:",
 		    long_options, &option_index);
 		if (ch == -1) break;
 		switch (ch) {
@@ -109,6 +115,12 @@ main(int argc, char *argv[])
         case 'c':
             tun_up_cmd = strdup(optarg);
             break;
+        case 'U':
+            username = strdup(optarg);
+            break;
+        case 'P':
+            password = strdup(optarg);
+            break;
 		default:
 			fprintf(stderr, "unknown option `%c'\n", ch);
 			usage();
@@ -123,6 +135,11 @@ main(int argc, char *argv[])
         exit(1);
     }
 
+    if (username == NULL || password == NULL) {
+        log_crit("main", "Both username and password must be provided");
+        exit(1);
+    }
+
 	/* TODO:3000 It's time for you program to do something. Add anything
 	 * TODO:3000 you want here. */
     log_debug("main", "Allocating tun");
@@ -132,19 +149,21 @@ main(int argc, char *argv[])
         if (bridge_host != NULL) {
             log_crit("main", "Server doesn't bridge-over, it _is_ the bridgeHost");
         } else {
-            run_server(port, tun_fd);
+            run_server(port, tun_fd, username, password);
         }
     } else {
         if (bridge_host == NULL) {
             log_crit("main", "Client requires bridgeHost");
         } else {
-            run_client(bridge_host, port, tun_fd);
+            run_client(bridge_host, port, tun_fd, username, password);
             free(bridge_host);
         }
     }
     log_debug("main", "Closing tun");
     close(tun_fd);
     free(tun_up_cmd);
+    free(username);
+    free(password);
 
 	return EXIT_SUCCESS;
 }

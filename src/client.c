@@ -52,7 +52,7 @@ void do_backoff(int usec) {
     else usleep(usec);
 }
 
-void run_client(const char *host, int port, int tun_fd) {
+void run_client(const char *host, int port, int tun_fd, const char *username, const char *password) {
     int flags = fcntl(tun_fd, F_GETFL, 0);
     assert(fcntl(tun_fd, F_SETFL, flags | O_NONBLOCK) == 0);
 
@@ -101,6 +101,8 @@ void run_client(const char *host, int port, int tun_fd) {
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&tun_fd);
+        curl_easy_setopt(curl, CURLOPT_USERNAME, username);
+        curl_easy_setopt(curl, CURLOPT_PASSWORD, password);
         res = curl_easy_perform(curl);
 
         if(res != CURLE_OK) {

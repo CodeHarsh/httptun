@@ -17,7 +17,7 @@ int main() {
     int fd = open("/tmp/test.client", O_RDWR);
     int flags = fcntl(fd, F_GETFL, 0);
     fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-    run_client("test-3", 9090, fd);
+    run_client("test-3", 9090, fd, "foo", "bar");
     close(fd);
     return 0;
 }

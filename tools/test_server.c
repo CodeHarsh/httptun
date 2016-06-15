@@ -40,7 +40,7 @@ int main() {
     do_stop = 0;
     stop_on_sigint();
     log_debug("main", "Starting httptun-server");
-    run_server(9090, fd);
+    run_server(9090, fd, "foo", "bar");
     log_debug("main", "Terminating test");
 
     //read_write(fd);

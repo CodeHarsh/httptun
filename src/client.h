@@ -5,5 +5,5 @@
 #  include <config.h>
 #endif
 
-void run_client(const char* host, int port, int tun_fd);
+void run_client(const char* host, int port, int tun_fd, const char *username, const char *password);
 #endif
