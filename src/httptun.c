@@ -126,6 +126,7 @@ main(int argc, char *argv[])
 	 * TODO:3000 you want here. */
     log_debug("main", "Allocating tun");
     int tun_fd = alloc_tun(tun_up_cmd);
+    assert(tun_fd > 0);
     if (server) {
         if (bridge_host != NULL) {
             log_crit("main", "Server doesn't bridge-over, it _is_ the bridgeHost");

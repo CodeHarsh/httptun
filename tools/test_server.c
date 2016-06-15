@@ -23,7 +23,7 @@ void read_write(int fd) {
     log_info("server", "client fd: %d", fd);
     char buf[100] = {'f', 'o', 'o'};
     int rc;
-    write(fd, buf, 3);
+    assert(write(fd, buf, 3) == 3);
     rc=read(fd,buf,sizeof(buf));
     log_info("client", "Received %d bytes: %s", rc, buf);
 }
