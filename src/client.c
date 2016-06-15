@@ -98,7 +98,7 @@ void run_client(const char *host, int port, int tun_fd, const char *username, co
             log_debug("client", "Sending NO-data in current request");
             increase_backoff(&backoff);
         }
-        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+        if (debug_on()) curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&tun_fd);
         curl_easy_setopt(curl, CURLOPT_USERNAME, username);

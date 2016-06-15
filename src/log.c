@@ -55,6 +55,10 @@ log_init(int n_debug, const char *progname)
 	tzset();
 }
 
+int debug_on() {
+    return (debug > 2);
+}
+
 void
 log_register(void (*cb)(int, const char*, void*), void *arg)
 {
