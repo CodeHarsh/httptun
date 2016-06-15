@@ -20,7 +20,7 @@
 
 /* log.c */
 void             log_init(int, const char *);
-int              debug_on();
+int              trace_on();
 void             log_warn(const char *, const char *, ...) __attribute__ ((format (printf, 2, 3)));
 void             log_warnx(const char *, const char *, ...) __attribute__ ((format (printf, 2, 3)));
 void             log_crit(const char *, const char *, ...) __attribute__ ((format (printf, 2, 3)));

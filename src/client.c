@@ -1,15 +1,18 @@
 #include "client.h"
 #include "stop.h"
 #include "log.h"
+
 #include <unistd.h>
 #include <assert.h>
-
 #include <stdio.h>
 #include <curl/curl.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <string.h>
 #include <errno.h>
+#include <stdlib.h>
+#include <sys/time.h>
+#include <sys/types.h>
  
 #define BUFF_SZ (32 * 1024)
 #define MAX_HOST_LEN 255
@@ -40,16 +43,30 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
 void increase_backoff(int *usec) {
     if (*usec < 300000) { /* < 300 ms (healthy internet class latency + BIG factor of safety) */
         *usec += 20000;
-    } else if (*usec < 5000000) {/* < 5 sec (no one is doing anything anyway) */
+    } else if (*usec < 60000000) {/* < 1 minute (no one is doing anything anyway) */
         *usec *= 2;
     }
     log_debug("client", "New backoff value: %d", *usec);
 }
 
-void do_backoff(int usec) {
-    int sec = usec >> 20;
-    if (sec > 0) sleep(sec);
-    else usleep(usec);
+void do_backoff(int usec, int tun_fd) {
+    fd_set rfds;
+    struct timeval tv;
+    int retval;
+    int sec;
+
+    FD_ZERO(&rfds);
+    FD_SET(tun_fd, &rfds);
+
+    sec = tv.tv_sec = usec / 1000000;
+    tv.tv_usec = usec % 1000000;
+
+    retval = select(tun_fd + 1, &rfds, NULL, NULL, &tv);
+
+    if (retval == -1) {
+        log_crit("client", "select failed, falling-back to sleep");
+        sleep(sec);
+    }
 }
 
 void run_client(const char *host, int port, int tun_fd, const char *username, const char *password, int use_ssl) {
@@ -98,7 +115,7 @@ void run_client(const char *host, int port, int tun_fd, const char *username, co
             log_debug("client", "Sending NO-data in current request");
             increase_backoff(&backoff);
         }
-        if (debug_on()) curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+        if (trace_on()) curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&tun_fd);
         curl_easy_setopt(curl, CURLOPT_USERNAME, username);
@@ -117,7 +134,7 @@ void run_client(const char *host, int port, int tun_fd, const char *username, co
             log_info("client", "Speed: %.3f bytes/sec during %.3f seconds\n", speed_upload, total_time);
         }
 
-        do_backoff(backoff);
+        do_backoff(backoff, tun_fd);
     }
     curl_easy_cleanup(curl);
 }

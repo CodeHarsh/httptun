@@ -55,8 +55,8 @@ log_init(int n_debug, const char *progname)
 	tzset();
 }
 
-int debug_on() {
-    return (debug > 2);
+int trace_on() {
+    return (debug > 3);
 }
 
 void
