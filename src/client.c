@@ -57,6 +57,8 @@ void run_client(const char *host, int port, int tun_fd) {
     assert(curl != NULL);
     while(! do_stop) {
         read_len = read(tun_fd, buff, BUFF_SZ);
+        if (read_len == -1 && errno != EAGAIN)
+            log_warn("client", "Failed to read from tun");
 
         curl_easy_reset(curl);
         post = last_post = NULL;
@@ -69,6 +71,9 @@ void run_client(const char *host, int port, int tun_fd) {
                          CURLFORM_BUFFERLENGTH, read_len,
                          CURLFORM_END);
             curl_easy_setopt(curl, CURLOPT_HTTPPOST, post);
+            log_debug("client", "Sending %d bytes of data in current request");
+        } else {
+            log_debug("client", "Sending NO-data in current request");
         }
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
