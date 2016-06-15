@@ -40,7 +40,7 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
 void increase_backoff(int *usec) {
     if (*usec < 300000) { /* < 300 ms (healthy internet class latency + BIG factor of safety) */
         *usec += 20000;
-    } else if (*usec < 60000000) {/* < 1 min (no one is doing anything anyway) */
+    } else if (*usec < 5000000) {/* < 5 sec (no one is doing anything anyway) */
         *usec *= 2;
     }
     log_debug("client", "New backoff value: %d", *usec);
