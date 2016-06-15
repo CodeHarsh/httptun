@@ -190,7 +190,9 @@ static int do_handle(void *s_ctx_,
     return render_static_response_and_free_req(request, "Method not supported.", "text/plain", MHD_HTTP_METHOD_NOT_ACCEPTABLE, connection);
 }
 
-void run_server(int port, int tun_fd, const char *username, const char *password) {
+void run_server(int port, int tun_fd,
+                const char *username, const char *password,
+                const char *ssl_key, const char *ssl_cert) {
     int flags = fcntl(tun_fd, F_GETFL, 0);
     assert(fcntl(tun_fd, F_SETFL, flags | O_NONBLOCK) == 0);
 
@@ -200,7 +202,18 @@ void run_server(int port, int tun_fd, const char *username, const char *password
     s_ctx.password = password;
     struct MHD_Daemon *d;
     log_warnx("server", "Starting HTTP server on port %d!", port);
-    d = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY, port, NULL, NULL, &do_handle, &s_ctx, MHD_OPTION_END);
+    if (ssl_key == NULL)
+        d = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY, port,
+                             NULL, NULL,
+                             &do_handle, &s_ctx,
+                             MHD_OPTION_END);
+    else
+        d = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY, port,
+                             NULL, NULL,
+                             &do_handle, &s_ctx,
+                             MHD_OPTION_HTTPS_MEM_KEY, ssl_key,
+                             MHD_OPTION_HTTPS_MEM_CERT, ssl_cert,
+                             MHD_OPTION_END);
     assert(d != NULL);
     while(! do_stop) sleep(1);
     fatal("server", "Stop requested");

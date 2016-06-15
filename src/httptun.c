@@ -49,15 +49,30 @@ usage(void)
     fprintf(stderr, " -p, --port <port>                  server port number\n");
     fprintf(stderr, " -b, --bridgeHost <hostname | ip>   host to bridge to\n");
     fprintf(stderr, " -c, --command '<command>'          command to set up tunnel (TUN-UP command)\n");
+    fprintf(stderr, " -K, --sslKeyFile <path>            server key file\n");
+    fprintf(stderr, " -C, --sslCertFile <path>           server cert file\n");
     fprintf(stderr, " -U, --username <username>          \n");
     fprintf(stderr, " -P, --password <password>          \n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "see manual page " PACKAGE "(8) for more information\n");
 }
 
-int
-main(int argc, char *argv[])
-{
+static char *read_file(const char *path) {
+    FILE *f = fopen(path, "rb");
+
+    fseek(f, 0, SEEK_END);
+    long fsize = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    char *data = malloc(fsize + 1);
+    fread(data, fsize, 1, f);
+    data[fsize] = 0;
+
+    fclose(f);
+    return data;
+}
+
+int main(int argc, char *argv[]) {
 	int debug = 1;
 	int ch;
 
@@ -67,6 +82,8 @@ main(int argc, char *argv[])
     char *tun_up_cmd = NULL;
     char *username = NULL;
     char *password = NULL;
+    char *ssl_key = NULL;
+    char *ssl_cert = NULL;
     do_stop = 0;
     stop_on_sigint();
 
@@ -81,11 +98,13 @@ main(int argc, char *argv[])
         { "command", required_argument, 0, 'c'},
         { "username", required_argument, 0, 'U'},
         { "password", required_argument, 0, 'P'},
+        { "sslKeyFile", required_argument, 0, 'K'},
+        { "sslCertFile", required_argument, 0, 'C'},
         { 0 }
 	};
 	while (1) {
 		int option_index = 0;
-		ch = getopt_long(argc, argv, "hvdD:sp:b:c:U:P:",
+		ch = getopt_long(argc, argv, "hvdD:sp:b:c:U:P:K:C:",
 		    long_options, &option_index);
 		if (ch == -1) break;
 		switch (ch) {
@@ -121,6 +140,12 @@ main(int argc, char *argv[])
         case 'P':
             password = strdup(optarg);
             break;
+        case 'K':
+            ssl_key = read_file(optarg);
+            break;
+        case 'C':
+            ssl_cert = read_file(optarg);
+            break;
 		default:
 			fprintf(stderr, "unknown option `%c'\n", ch);
 			usage();
@@ -140,6 +165,12 @@ main(int argc, char *argv[])
         exit(1);
     }
 
+    if ((ssl_key == NULL && ssl_cert != NULL) ||
+        (ssl_key != NULL && ssl_cert == NULL)) {
+        log_crit("main", "Either none or both ssl-cert and ssl-key files must be provided");
+        exit(1);
+    }
+
 	/* TODO:3000 It's time for you program to do something. Add anything
 	 * TODO:3000 you want here. */
     log_debug("main", "Allocating tun");
@@ -149,7 +180,7 @@ main(int argc, char *argv[])
         if (bridge_host != NULL) {
             log_crit("main", "Server doesn't bridge-over, it _is_ the bridgeHost");
         } else {
-            run_server(port, tun_fd, username, password);
+            run_server(port, tun_fd, username, password, ssl_key, ssl_cert);
         }
     } else {
         if (bridge_host == NULL) {
@@ -164,6 +195,8 @@ main(int argc, char *argv[])
     free(tun_up_cmd);
     free(username);
     free(password);
+    free(ssl_key);
+    free(ssl_cert);
 
 	return EXIT_SUCCESS;
 }
