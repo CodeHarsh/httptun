@@ -37,12 +37,6 @@ static int post_iterator(void *ctx,
             log_debug("server", "Wrote %zd bytes to tunnel so far", written);
         }
         usleep(1000);//1 ms wait, so we take advantage of something returning really fast
-        if ((POST_BUFFER_SZ - r->buff_filled_upto) > 0) {
-            int bytes_read = read(r->fd, r->buff + r->buff_filled_upto, POST_BUFFER_SZ - r->buff_filled_upto);
-            log_debug("server", "Read %d bytes off tun", bytes_read);
-            if (bytes_read > 0) r->buff_filled_upto += bytes_read;
-            else if (errno != EAGAIN) log_warn("server", "Tun read failed, it read %d bytes", bytes_read);
-        }
     }
     return MHD_YES;
 }
@@ -55,6 +49,11 @@ static int pkt_response(void *ctx, struct MHD_Connection *connection) {
         return MHD_NO;
 
     struct request_s *r = (struct request_s*) ctx;
+
+    int bytes_read = read(r->fd, r->buff, POST_BUFFER_SZ);
+    log_debug("server", "Read %d bytes off tun", bytes_read);
+    if (bytes_read > 0) r->buff_filled_upto += bytes_read;
+    else if (errno != EAGAIN) log_warn("server", "Tun read failed, it read %d bytes", bytes_read);
 
     response = MHD_create_response_from_buffer(r->buff_filled_upto, (void *) ctx, MHD_RESPMEM_MUST_FREE);
     if (NULL == response)
@@ -144,8 +143,9 @@ static int do_handle(void *fd,
         }
         return MHD_YES;
     }
-    if (0 == strcmp (method, MHD_HTTP_METHOD_POST)) {
-        MHD_post_process (request->pp, upload_data, *upload_data_size);
+    ctx = request;
+    if (0 == strcmp(method, MHD_HTTP_METHOD_POST)) {
+        MHD_post_process(request->pp, upload_data, *upload_data_size);
         if (0 != *upload_data_size) {
             *upload_data_size = 0;
             return MHD_YES;
@@ -154,7 +154,6 @@ static int do_handle(void *fd,
         MHD_destroy_post_processor(request->pp);
         request->pp = NULL;
         method = MHD_HTTP_METHOD_GET; /* fake 'GET' */
-        ctx = request;
     }
 
     if ((0 == strcmp(method, MHD_HTTP_METHOD_GET)) ||
