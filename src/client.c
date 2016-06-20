@@ -38,11 +38,11 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
     return total_written;
 }
 
-#define MIN_BACKOFF_MICRO_SEC 1000 /* 1 ms, used when we have work going on */
+#define MIN_BACKOFF_MICRO_SEC 10 /* 10 micro-sec, used when we have work going on */
 
 void increase_backoff(int *usec) {
     if (*usec < 300000) { /* < 300 ms (healthy internet class latency + BIG factor of safety) */
-        *usec += 20000;
+        *usec += 10;
     } else if (*usec < 60000000) {/* < 1 minute (no one is doing anything anyway) */
         *usec *= 2;
     }

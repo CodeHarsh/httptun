@@ -41,7 +41,6 @@ static int post_iterator(void *ctx,
             written += write(r->fd, value + off + written, size - written);
             log_debug("server", "Wrote %zd bytes to tunnel so far", written);
         }
-        usleep(1000);//1 ms wait, so we take advantage of something returning really fast
     }
     return MHD_YES;
 }
