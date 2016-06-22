@@ -75,11 +75,16 @@ static int pkt_response(struct request_s *req, struct MHD_Connection *connection
         return MHD_NO;
 
     int buffered_bytes = 0;
-    int bytes_read = read(req->fd, req->buff, POST_BUFFER_SZ);
-    
-    log_debug("server", "Read %d bytes off tun", bytes_read);
-    if (bytes_read > 0) buffered_bytes = bytes_read;
-    else if (errno != EAGAIN) log_warn("server", "Tun read failed, it read %d bytes", bytes_read);
+    while (1) {
+        int bytes_read = read(req->fd, req->buff + buffered_bytes, POST_BUFFER_SZ - buffered_bytes);
+        log_debug("server", "Read %d bytes off tun", bytes_read);
+        if (bytes_read > 0) {
+            buffered_bytes += bytes_read;
+        } else {
+            if (errno != EAGAIN) log_warn("server", "Tun read failed, it read %d bytes", bytes_read);
+            break;
+        }
+    }
 
     return render_response((void *)req, buffered_bytes, "application/octet-stream", MHD_RESPMEM_MUST_FREE, MHD_HTTP_OK, connection);
 }
