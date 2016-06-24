@@ -93,16 +93,29 @@ void run_client(const char *host, int port, int tun_fd, const char *username, co
     }
     make_pkt_post_url(host, port, use_ssl, url, URL_SZ);
     curl = curl_easy_init();
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    if (trace_on()) curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&tun_fd);
+    curl_easy_setopt(curl, CURLOPT_USERNAME, username);
+    curl_easy_setopt(curl, CURLOPT_PASSWORD, password);
+    if (use_ssl) {
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+    }
+
     assert(curl != NULL);
+    post = last_post = NULL;
     while(! do_stop) {
         read_len = read(tun_fd, buff, BUFF_SZ);
         if (read_len == -1 && errno != EAGAIN)
             log_warn("client", "Failed to read from tun");
 
-        curl_easy_reset(curl);
-        post = last_post = NULL;
-        curl_easy_setopt(curl, CURLOPT_URL, url);
         if (read_len > 0) {
+            if (post != NULL) {
+                curl_formfree(post);
+                post = last_post = NULL;
+            }
             curl_formadd(&post, &last_post,
                          CURLFORM_COPYNAME, "pkt",
                          CURLFORM_BUFFER, "pkt",
@@ -110,21 +123,12 @@ void run_client(const char *host, int port, int tun_fd, const char *username, co
                          CURLFORM_BUFFERLENGTH, read_len,
                          CURLFORM_END);
             curl_easy_setopt(curl, CURLOPT_HTTPPOST, post);
-            log_debug("client", "Sending %d bytes of data in current request", read_len);
             backoff = MIN_BACKOFF_MICRO_SEC;
-            log_debug("client", "Have reset backoff to %d", backoff);
+            log_debug("client", "Sending %d bytes of data in current request", read_len);
         } else {
-            log_debug("client", "Sending NO-data in current request");
             increase_backoff(&backoff);
-        }
-        if (trace_on()) curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&tun_fd);
-        curl_easy_setopt(curl, CURLOPT_USERNAME, username);
-        curl_easy_setopt(curl, CURLOPT_PASSWORD, password);
-        if (use_ssl) {
-            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+            curl_easy_setopt(curl, CURLOPT_HTTPGET, 1);
+            log_debug("client", "Sending NO-data in current request");
         }
         res = curl_easy_perform(curl);
 
@@ -133,10 +137,11 @@ void run_client(const char *host, int port, int tun_fd, const char *username, co
         } else {
             curl_easy_getinfo(curl, CURLINFO_SPEED_UPLOAD, &speed_upload);
             curl_easy_getinfo(curl, CURLINFO_TOTAL_TIME, &total_time);
-            log_info("client", "Speed: %.3f bytes/sec during %.3f seconds\n", speed_upload, total_time);
+            log_debug("client", "Speed: %.3f bytes/sec during %.3f seconds\n", speed_upload, total_time);
         }
 
         do_backoff(backoff, tun_fd);
     }
+    if (post != NULL) curl_formfree(post);
     curl_easy_cleanup(curl);
 }
