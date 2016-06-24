@@ -75,7 +75,7 @@ static int pkt_response(struct request_s *req, struct MHD_Connection *connection
         return MHD_NO;
 
     int buffered_bytes = 0;
-    while (1) {
+    while (POST_BUFFER_SZ - buffered_bytes > 0) {
         int bytes_read = read(req->fd, req->buff + buffered_bytes, POST_BUFFER_SZ - buffered_bytes);
         log_debug("server", "Read %d bytes off tun", bytes_read);
         if (bytes_read > 0) {
@@ -85,6 +85,7 @@ static int pkt_response(struct request_s *req, struct MHD_Connection *connection
             break;
         }
     }
+    log_debug("server", "Sending %d bytes in response", buffered_bytes);
 
     return render_response((void *)req, buffered_bytes, "application/octet-stream", MHD_RESPMEM_MUST_FREE, MHD_HTTP_OK, connection);
 }
