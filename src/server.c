@@ -11,6 +11,7 @@
 #include <errno.h>
 
 #define POST_BUFFER_SZ 64*1024
+#define MHD_POST_PROCESSOR_BUFF POST_BUFFER_SZ
 
 struct request_s {
     char buff[POST_BUFFER_SZ];
@@ -165,7 +166,7 @@ static int do_handle(void *s_ctx_,
         request->fd = s_ctx->fd;
         *ptr = request;
         if (0 == strcmp (method, MHD_HTTP_METHOD_POST)) {
-            request->pp = MHD_create_post_processor(connection, 1024, &post_iterator, request);
+            request->pp = MHD_create_post_processor(connection, MHD_POST_PROCESSOR_BUFF, &post_iterator, request);
             if (NULL == request->pp) {
                 log_warn(SH, "Failed to setup post processor for '%s'", url);
                 return MHD_NO;
